@@ -85,6 +85,9 @@ fn build_rocksdb() {
 
     config.include(".");
     config.define("NDEBUG", Some("1"));
+    let a = "BUILDING GOT HERE";
+    println!("cargo:warning={}", a);
+    config.define("ROCKSDB_SUPPORT_THREAD_LOCAL", Some("1"));
 
     let mut lib_sources = include_str!("rocksdb_lib_sources.txt")
         .trim()

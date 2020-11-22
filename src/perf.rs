@@ -15,6 +15,7 @@
 use libc::{c_int, c_uchar, c_void};
 
 use crate::{ffi, ffi_util::from_cstr, Cache, Error, DB};
+use log::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[repr(i32)]
@@ -118,6 +119,50 @@ pub fn set_perf_stats(lvl: PerfStatsLevel) {
     }
 }
 
+pub struct IoStatsContext {
+    pub(crate) inner: *mut ffi::rocksdb_iostatscontext_t,
+}
+
+impl Default for IoStatsContext {
+    fn default() -> IoStatsContext {
+        let ctx = unsafe { ffi::rocksdb_iostatscontext_create() };
+        if ctx.is_null() {
+            panic!("Could not create IoStats Context");
+        }
+        info!("Created IoStatsContext");
+        IoStatsContext { inner: ctx }
+    }
+}
+
+impl Drop for IoStatsContext {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::rocksdb_iostatscontext_destroy(self.inner);
+        }
+    }
+}
+
+impl IoStatsContext {
+    /// Reset context
+    pub fn reset(&mut self) {
+        unsafe {
+            info!("resetting iosatscontext");
+            ffi::rocksdb_iostatscontext_reset(self.inner);
+        }
+    }
+
+    /// Get the report on perf
+    pub fn report(&self, exclude_zero_counters: bool) -> String {
+        unsafe {
+            let ptr =
+                ffi::rocksdb_iostatscontext_report(self.inner, exclude_zero_counters as c_uchar);
+            let report = from_cstr(ptr);
+            libc::free(ptr as *mut c_void);
+            report
+        }
+    }
+}
+
 /// Thread local context for gathering performance counter efficiently
 /// and transparently.
 pub struct PerfContext {
@@ -126,6 +171,7 @@ pub struct PerfContext {
 
 impl Default for PerfContext {
     fn default() -> PerfContext {
+        println!("creating PerfContext");
         let ctx = unsafe { ffi::rocksdb_perfcontext_create() };
         if ctx.is_null() {
             panic!("Could not create Perf Context");
@@ -145,6 +191,7 @@ impl Drop for PerfContext {
 impl PerfContext {
     /// Reset context
     pub fn reset(&mut self) {
+        info!("resetting PerfContext");
         unsafe {
             ffi::rocksdb_perfcontext_reset(self.inner);
         }
